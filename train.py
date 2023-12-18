@@ -8,35 +8,46 @@ from torchvision import models
 from torchvision import transforms
 from tqdm import tqdm
 import yaml
-from core import reader
+from core import reader, utils
 
 
 def get_new_run(
-    config_yaml: str
+    config_yaml: str,
+    tag: str = None
 ) -> dict:
     """Set up a new training run.
 
     Args:
         config_yaml (str): path to base config file
+        tag (str, optional): name of training run
 
     Returns:
         dict: training configuration
     """
+    # initialize new output directory
+    tag = 'default' if tag is None else tag  # default tag
+    output = utils.Output('runs', tag)
+
     # load training run config and hparam substitutions
     with open(config_yaml, 'r', encoding='utf-8') as file:
         config = yaml.safe_load(file)
-    return config
+    with open(output.config_path, 'w', encoding='utf-8') as file:
+        yaml.safe_dump(config, file)
+
+    return config, output
 
 
 def main(
-    config_yaml: str
+    config_yaml: str,
+    tag: str = None,
 ) -> None:
     """Main training script.
 
     Args:
         config_yaml (str): path to base config file for new run
+        tag (str): name of new training run
     """
-    config = get_new_run(config_yaml)
+    config, output = get_new_run(config_yaml, tag)
 
     print('Set up training variables ...')
     init_epoch = 0
@@ -83,9 +94,9 @@ def main(
             if 'plumbing' in config and config['plumbing']:
                 print('... exit batch loop early for plumbing check')
                 break
-        
+
         scheduler.step()
-    
+
         if 'plumbing' in config and config['plumbing']:
             print('... exit epoch loop early for plumbing check')
             break
@@ -95,10 +106,13 @@ def main(
     torch.onnx.export(
         network,
         images.to(config['device']),
-        'final.onnx',
+        output.onnx_path,
         input_names=['input'],
         output_names=['output']
     )
+
+    print('Done!')
+    output.write_done_token()
 
 
 if __name__ == '__main__':
