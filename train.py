@@ -1,16 +1,34 @@
-"""Training script. """
+"""
+Training script.
+
+Notes on CIFAR10 labels.
+0 -> airplane
+1 -> automobile
+2 -> bird
+3 -> cat
+4 -> deer
+5 -> dog
+6 -> frog
+7 -> horse
+8 -> ship
+9 -> truck
+
+Class-balanced taxonomy.
+Airplane -> 0 ... 100 samples
+Not-plane vehicles -> 1, 9 ... 60 samples
+Animals -> 2, 3, 4, 5, 6, 7, 8 ... 70 samples
+"""
 from pathlib import Path
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 import fire
 import torch
 from torch import optim
-from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 from torchvision import models
 from torchvision import transforms
 from tqdm import tqdm
 import yaml
-from core import reader, utils
+from core import reader, taxonomy, utils
 
 
 def get_new_run(
@@ -108,7 +126,12 @@ def main(
         shuffle=True
     )
     network = models.resnet18().to(config['device'])
-    criteria = CrossEntropyLoss()
+    head = taxonomy.TaxonomyHead(
+        network.fc.in_features,
+        10,
+        taxonomy.TAXONOMY_A
+    )
+    network.fc = head
     config['optimizer']['kwargs']['params'] = network.parameters()
     optimizer = getattr(optim, config['optimizer']['name'])
     optimizer = optimizer(**config['optimizer']['kwargs'])
@@ -131,14 +154,24 @@ def main(
     )
     for i_epoch in epochbar:
         for images, labels in loader:
-            logits = network(images.to(config['device']))
-            loss = criteria(logits, labels.to(config['device']))
+            # forward, backward, metrics
+            outputs: List[torch.Tensor] = network(images.to(config['device']))
+            losses = head.compute_loss(
+                outputs,
+                labels.to(config['device']),
+                2,
+                0.5
+            )
+            loss = losses[0] + 0.5 * losses[1]
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            with torch.no_grad():
+                metrics = head.compute_metrics(outputs, labels)
 
             # update feedback and logs
             epochbar.set_postfix({
+                'acc': float(metrics['acc/0']),  # full label set
                 'loss': float(loss)
             })
 
