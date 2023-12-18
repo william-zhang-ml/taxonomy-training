@@ -24,6 +24,7 @@ import fire
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import models
 from torchvision import transforms
 from tqdm import tqdm
@@ -46,7 +47,7 @@ def get_new_run(
         hparam_row (int, optional): which hparameter table row to use
 
     Returns:
-        Tuple[dict, utils.Output]: training configuration and output directory
+        Tuple[dict, utils.output]: training configuration and output directory
     """
     # initialize new output directory
     tag = 'default' if tag is None else tag  # default tag
@@ -71,7 +72,7 @@ def load_checkpoint(tag: str) -> Tuple[dict, utils.Output, dict]:
         tag (str): output directory tag
 
     Returns:
-        Tuple[dict, utils.Output, dict]:
+        Tuple[dict, utils.output, dict]:
             config,
             output directory interface,
             checkpoint state
@@ -111,8 +112,11 @@ def main(
     else:
         raise FileNotFoundError('must pass config yaml or prev output dir')
 
+    print(f'Linking to tensorboard w/tag "{output.tag}" ...')
+    board = SummaryWriter(log_dir=f'_tensorboard/{output.tag}')
+
     print('Set up training variables ...')
-    init_epoch = 0
+    init_epoch, step = 0, 0
     trainset = reader.DirectoryReader(
         './cifar10-train',
         transform=transforms.Compose([
@@ -141,7 +145,8 @@ def main(
 
     if checkpoint is not None:
         print('... detected checkpoint, restoring state')
-        init_epoch = checkpoint['epoch']
+        init_epoch = checkpoint['epoch'] + 1
+        step = checkpoint['step']
         network.load_state_dict(checkpoint['network'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         scheduler.load_state_dict(checkpoint['scheduler'])
@@ -154,6 +159,8 @@ def main(
     )
     for i_epoch in epochbar:
         for images, labels in loader:
+            step += 1
+
             # forward, backward, metrics
             outputs: List[torch.Tensor] = network(images.to(config['device']))
             losses = head.compute_loss(
@@ -170,6 +177,10 @@ def main(
                 metrics = head.compute_metrics(outputs, labels)
 
             # update feedback and logs
+            for i_loss, value in enumerate(losses):
+                board.add_scalar(f'loss/{i_loss}', value, step)
+            for name, value in metrics.items():
+                board.add_scalar(name, value, step)
             epochbar.set_postfix({
                 'acc': float(metrics['acc/0']),  # full label set
                 'loss': float(loss)
@@ -184,7 +195,8 @@ def main(
         # save epoch checkpoint
         torch.save(
             {
-                'epoch': i_epoch + 1,
+                'epoch': i_epoch,
+                'step': step,
                 'network': network.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'scheduler': scheduler.state_dict()
