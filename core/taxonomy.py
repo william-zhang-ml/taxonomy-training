@@ -31,12 +31,12 @@ def invert_taxonomy(taxonomy: Dict[int, List[int]]) -> Dict[int, int]:
     return inverse
 
 
-taxonomy_A = {
+TAXONOMY_A = {
     0: [0],
     1: [1, 9],
     2: [2, 3, 4, 5, 6, 7, 8],
 }
-LABEL_TO_GROUP_A = invert_taxonomy(taxonomy_A)
+LABEL_TO_GROUP_A = invert_taxonomy(TAXONOMY_A)
 
 
 def apply_taxonomy(
