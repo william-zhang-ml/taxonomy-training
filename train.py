@@ -27,6 +27,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import models
 from torchvision import transforms
+from torchvision.datasets import CIFAR10
 from tqdm import tqdm
 import yaml
 from core import reader, taxonomy, utils
@@ -114,6 +115,7 @@ def main(
 
     print(f'Linking to tensorboard w/tag "{output.tag}" ...')
     board = SummaryWriter(log_dir=f'_tensorboard/{output.tag}')
+    val_board = SummaryWriter(log_dir=f'_tensorboard/{output.tag}-val')
 
     print('Set up training variables ...')
     init_epoch, step = 0, 0
@@ -123,6 +125,11 @@ def main(
             transforms.RandomVerticalFlip(),
             transforms.RandomHorizontalFlip(),
         ])
+    )
+    valset = CIFAR10(
+        './cifar10-train',
+        train=False,
+        transform=transforms.ToTensor()
     )
     loader = DataLoader(
         trainset,
@@ -157,6 +164,7 @@ def main(
         initial=init_epoch,
         total=config['num_epochs']
     )
+    val_acc, val_loss = float('nan'), float('nan')
     for i_epoch in epochbar:
         for images, labels in loader:
             step += 1
@@ -183,7 +191,9 @@ def main(
                 board.add_scalar(name, value, step)
             epochbar.set_postfix({
                 'acc': float(metrics['acc/0']),  # full label set
-                'loss': float(loss)
+                'loss': float(loss),
+                'val_acc': float(val_acc),
+                'val_loss': float(val_loss)
             })
 
             if 'plumbing' in config and config['plumbing']:
@@ -203,6 +213,24 @@ def main(
             },
             output.checkpoint_dir / f'{i_epoch + 1}.pt'
         )
+
+        # compute current weight validation metrics
+        network.eval()
+        with torch.no_grad():
+            outputs, labels = taxonomy.gather_outputs(
+                network,
+                valset,
+                device=config['device']
+            )
+            losses = head.compute_loss(outputs, labels, 2, 0.5)
+            val_loss = losses[0] + 0.5 * losses[1]
+            val_metrics = head.compute_metrics(outputs, labels)
+            val_acc = val_metrics['acc/0']
+        network.train()
+        for i_loss, value in enumerate(losses):
+            val_board.add_scalar(f'loss/{i_loss}', value, step)
+        for name, value in val_metrics.items():
+            val_board.add_scalar(name, value, step)
 
         if 'plumbing' in config and config['plumbing']:
             print('... exit epoch loop early for plumbing check')

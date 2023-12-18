@@ -78,7 +78,7 @@ def gather_outputs(
         all_labels = []
         for images, labels in loader:
             outputs: List[torch.Tensor] = network(images.to(device))
-            all_outputs.append(outputs.cpu())
+            all_outputs.append([outp.cpu() for outp in outputs])
             all_labels.append(labels)
     all_outputs = [torch.cat(curr) for curr in zip(*all_outputs)]
     all_labels = torch.cat(all_labels)
