@@ -80,6 +80,16 @@ def main(
                 'loss': float(loss)
             })
 
+            if 'plumbing' in config and config['plumbing']:
+                print('... exit batch loop early for plumbing check')
+                break
+        
+        scheduler.step()
+    
+        if 'plumbing' in config and config['plumbing']:
+            print('... exit epoch loop early for plumbing check')
+            break
+
     print('Exporting final weights ...')
     network.eval()
     torch.onnx.export(

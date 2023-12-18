@@ -11,3 +11,4 @@ scheduler:
     name: CosineAnnealingWarmRestarts
     kwargs:
         T_0: 100
+plumbing: true
