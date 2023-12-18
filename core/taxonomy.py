@@ -15,44 +15,44 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 
-def invert_ontology(ontology: Dict[int, List[int]]) -> Dict[int, int]:
-    """Invert a "ontology group to members" map.
+def invert_taxonomy(taxonomy: Dict[int, List[int]]) -> Dict[int, int]:
+    """Invert a "taxonomy group to members" map.
 
     Args:
-        ontology (Dict[int, List[int]]): ontology group to member labels map
+        taxonomy (Dict[int, List[int]]): taxonomy group to member labels map
 
     Returns:
-        Dict[int, int]: labels to ontology groupmap
+        Dict[int, int]: labels to taxonomy groupmap
     """
     inverse = {}
-    for group, group_labels in ontology.items():
+    for group, group_labels in taxonomy.items():
         for label in group_labels:
             inverse[label] = group
     return inverse
 
 
-ONTOLOGY_A = {
+taxonomy_A = {
     0: [0],
     1: [1, 9],
     2: [2, 3, 4, 5, 6, 7, 8],
 }
-LABEL_TO_GROUP_A = invert_ontology(ONTOLOGY_A)
+LABEL_TO_GROUP_A = invert_taxonomy(taxonomy_A)
 
 
-def apply_ontology(
+def apply_taxonomy(
     labels: torch.Tensor,
-    ontology: Dict[int, List[int]]
+    taxonomy: Dict[int, List[int]]
 ) -> torch.Tensor:
-    """Map labels to coarser labels according to an ontology.
+    """Map labels to coarser labels according to an taxonomy.
 
     Args:
         labels (torch.Tensor): labels to map
-        ontology (Dict[int, List[int]]): ontology group to member labels map
+        taxonomy (Dict[int, List[int]]): taxonomy group to member labels map
 
     Returns:
         torch.Tensor: mapped labels
     """
-    inverse = invert_ontology(ontology)
+    inverse = invert_taxonomy(taxonomy)
     return torch.tensor([inverse[int(curr)] for curr in labels])
 
 
@@ -85,25 +85,25 @@ def gather_outputs(
     return all_outputs, all_labels
 
 
-class OntologyHead(nn.Module):
-    """Task head for labels and multiple label ontologies. """
+class TaxonomyHead(nn.Module):
+    """Task head for labels and multiple label taxonomies. """
     def __init__(
         self,
         in_features: int,
         num_classes: int,
-        ontologies: List[Dict[int, List[int]]]
+        taxonomies: List[Dict[int, List[int]]]
     ) -> None:
         super().__init__()
-        if isinstance(ontologies, dict):
-            ontologies = [ontologies]
+        if isinstance(taxonomies, dict):
+            taxonomies = [taxonomies]
 
         self.linear = nn.Linear(in_features, num_classes, bias=True)
-        self.ontologies = ontologies  # TODO - make deepcopy
+        self.taxonomies = taxonomies  # TODO - make deepcopy
         self.adders = []
-        for ontology in ontologies:
-            # convert ontology to a matrix that implements score-adding
-            adder = torch.zeros(num_classes, len(ontology))
-            for parent, children in ontology.items():
+        for taxonomy in taxonomies:
+            # convert taxonomy to a matrix that implements score-adding
+            adder = torch.zeros(num_classes, len(taxonomy))
+            for parent, children in taxonomy.items():
                 adder[children, parent] = 1
             self.adders.append(adder)
 
@@ -112,13 +112,13 @@ class OntologyHead(nn.Module):
             assert torch.allclose(outp.sum(dim=1), torch.tensor(1.))
 
     def forward(self, features: torch.Tensor) -> List[torch.Tensor]:
-        """Compute class confidence scores and ontology confidence scores.
+        """Compute class confidence scores and taxonomy confidence scores.
 
         Args:
             features (torch.Tensor): feature vectors from some backbone (B, C)
 
         Returns:
-            List[torch.Tensor]: class and ontology confidence scores
+            List[torch.Tensor]: class and taxonomy confidence scores
         """
         scores = self.linear(features).softmax(dim=1)
         outputs = [scores]
@@ -149,11 +149,11 @@ class OntologyHead(nn.Module):
         )
         losses = []
         losses.append(loss_func(outputs[0], labels))
-        for curr_output, ontology in zip(outputs[1:], self.ontologies):
+        for curr_output, taxonomy in zip(outputs[1:], self.taxonomies):
             losses.append(
                 loss_func(
                     curr_output,
-                    apply_ontology(labels, ontology)
+                    apply_taxonomy(labels, taxonomy)
                 )
             )
         return losses
@@ -167,10 +167,10 @@ class OntologyHead(nn.Module):
         acc: List[float] = []
         pred = outputs[0].argmax(dim=1)
         acc.append(100 * (pred == labels).float().mean().item())
-        for outp, ontology in zip(outputs[1:], self.ontologies):
+        for outp, taxonomy in zip(outputs[1:], self.taxonomies):
             pred = outp.argmax(dim=1)
-            onto_labels = apply_ontology(labels, ontology)
-            acc.append(100 * (pred == onto_labels).float().mean().item())
+            taxo_labels = apply_taxonomy(labels, taxonomy)
+            acc.append(100 * (pred == taxo_labels).float().mean().item())
         return {
             f'acc/{ii}': float(acc)
             for ii, acc in enumerate(acc)
