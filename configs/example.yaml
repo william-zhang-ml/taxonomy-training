@@ -1,5 +1,5 @@
 device: cpu
-num_epochs: 10
+num_epochs: 150
 batch_size: 10
 optimizer:
     name: SGD
