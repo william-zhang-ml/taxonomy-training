@@ -6,6 +6,7 @@ Images should go into the subdirectory named after its label.
 import os
 from pathlib import Path
 from typing import Callable, List, Tuple
+import numpy as np
 from matplotlib import pyplot as plt
 import torch
 from torch.utils.data import Dataset
@@ -38,10 +39,13 @@ class DirectoryReader(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
         lookup_entry = self.lookup[idx]
-        img = torch.from_numpy(plt.imread(lookup_entry['img_path']) / 255)
-        img = img.float()  # to float32
+        img = plt.imread(lookup_entry['img_path'])
         if img.ndim == 2:
             img = img.unsqueeze(0)  # add channel dim to grayscale image
+        elif img.ndim == 3:
+            img = np.moveaxis(img, -1, 0)  # HWC -> CHW
+        img = torch.from_numpy(img / 255)
+        img = img.float()  # to float32 if float64
         if self.transform is not None:
             img = self.transform(img)
         label = lookup_entry['label']

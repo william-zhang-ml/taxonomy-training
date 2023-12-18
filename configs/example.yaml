@@ -1,0 +1,13 @@
+device: cpu
+num_epochs: 1
+batch_size: 10
+optimizer:
+    name: SGD
+    kwargs:
+        lr: 1.0e-3
+        momentum: 0.9
+        weight_decay: 1.0e-2
+scheduler:
+    name: CosineAnnealingWarmRestarts
+    kwargs:
+        T_0: 100
