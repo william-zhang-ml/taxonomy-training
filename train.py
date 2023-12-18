@@ -89,7 +89,7 @@ def main(
         initial=init_epoch,
         total=config['num_epochs']
     )
-    for _ in epochbar:
+    for i_epoch in epochbar:
         for images, labels in loader:
             logits = network(images.to(config['device']))
             loss = criteria(logits, labels.to(config['device']))
@@ -97,7 +97,7 @@ def main(
             loss.backward()
             optimizer.step()
 
-            # logging
+            # update feedback and logs
             epochbar.set_postfix({
                 'loss': float(loss)
             })
@@ -107,6 +107,17 @@ def main(
                 break
 
         scheduler.step()
+
+        # save epoch checkpoint
+        torch.save(
+            {
+                'epoch': i_epoch + 1,
+                'network': network.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'scheduler': scheduler.state_dict()
+            },
+            output.checkpoint_dir / f'{i_epoch + 1}.pt'
+        )
 
         if 'plumbing' in config and config['plumbing']:
             print('... exit epoch loop early for plumbing check')
