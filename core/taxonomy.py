@@ -60,7 +60,8 @@ def gather_outputs(
     network: torch.nn.Module,
     dataset: torch.utils.data.Dataset,
     batch_size: int = 10,
-    device: str = 'cuda:0'
+    device: str = 'cuda:0',
+    num_batches: int = None
 ) -> Tuple[List[torch.FloatTensor], torch.LongTensor]:
     """Run entire dataset through a network (no grad).
 
@@ -76,10 +77,13 @@ def gather_outputs(
     with torch.no_grad():
         all_outputs = []
         all_labels = []
-        for images, labels in loader:
+        for i_batch, (images, labels) in enumerate(loader):
             outputs: List[torch.Tensor] = network(images.to(device))
             all_outputs.append([outp.cpu() for outp in outputs])
             all_labels.append(labels)
+
+            if num_batches is not None and i_batch == num_batches:
+                break
     all_outputs = [torch.cat(curr) for curr in zip(*all_outputs)]
     all_labels = torch.cat(all_labels)
     return all_outputs, all_labels
