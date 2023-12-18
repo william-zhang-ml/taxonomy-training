@@ -220,7 +220,8 @@ def main(
             outputs, labels = taxonomy.gather_outputs(
                 network,
                 valset,
-                device=config['device']
+                device=config['device'],
+                num_batches=100
             )
             losses = head.compute_loss(outputs, labels, 2, 0.5)
             val_loss = losses[0] + 0.5 * losses[1]
