@@ -1,7 +1,26 @@
 """Utility functions and classes. """
 import os
 from pathlib import Path
+import pandas as pd
 import torch
+
+
+def get_hyperparameters(file: str, index: int) -> dict:
+    """Get a specific hyperparameter row from a CSV table.
+
+    Args:
+        file (str): CSV table of hyperparmeters
+        index (int): row to get
+
+    Returns:
+        dict: hyperparameter key-value pairs
+    """
+    hparams = {}
+    for key, val in pd.read_csv(file).loc[index].dropna().to_dict().items():
+        if isinstance(val, float) and val.is_integer():
+            val = int(val)
+        hparams[key] = val
+    return hparams
 
 
 class Output:
