@@ -39,6 +39,7 @@ def get_new_run(
         config = yaml.safe_load(file)
     if hparam_csv is not None and hparam_row is not None:
         config.update(utils.get_hyperparameters(hparam_csv, int(hparam_row)))
+    config['commithash'] = utils.get_repo_hash()
     with open(output.config_path, 'w', encoding='utf-8') as file:
         yaml.safe_dump(config, file)
 

@@ -1,8 +1,18 @@
 """Utility functions and classes. """
 import os
 from pathlib import Path
+import git
 import pandas as pd
 import torch
+
+
+def get_repo_hash() -> str:
+    """
+    Returns:
+        str: long hash of the repo
+    """
+    repo = git.Repo(search_parent_directories=True)
+    return repo.head.commit.hexsha
 
 
 def get_hyperparameters(file: str, index: int) -> dict:
