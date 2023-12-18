@@ -1,5 +1,6 @@
 """Training script. """
-from typing import Tuple
+from pathlib import Path
+from typing import Tuple, Union
 import fire
 import torch
 from torch import optim
@@ -13,7 +14,7 @@ from core import reader, utils
 
 
 def get_new_run(
-    config_yaml: str,
+    config_yaml: Union[str, Path],
     tag: str = None,
     hparam_csv: str = None,
     hparam_row: int = None
@@ -44,8 +45,27 @@ def get_new_run(
     return config, output
 
 
+def load_checkpoint(tag: str) -> Tuple[dict, utils.Output, dict]:
+    """Load existing output directory, its config, and the latest checkpoint.
+
+    Args:
+        tag (str): output directory tag
+
+    Returns:
+        Tuple[dict, utils.Output, dict]:
+            config,
+            output directory interface,
+            checkpoint state
+    """
+    output = utils.Output('runs', tag, exists=True)
+    with open(output.config_path, 'r', encoding='utf-8') as file:
+        config = yaml.safe_load(file)
+    checkpoint = output.get_latest_checkpoint()
+    return config, output, checkpoint
+
+
 def main(
-    config_yaml: str,
+    run_arg: str,
     tag: str = None,
     hparam_csv: str = None,
     hparam_row: int = None
@@ -53,12 +73,24 @@ def main(
     """Main training script.
 
     Args:
-        config_yaml (str): path to base config file for new run
+        run_arg (str): path to base config file for new run,
+                       or to existing run's output directory
         tag (str, optional): name of new training run
         hparam_csv (str, optional): path to alternative/extra hparameters
         hparam_row (int, optional): which hparameter table row to use
     """
-    config, output = get_new_run(config_yaml, tag, hparam_csv, hparam_row)
+
+    print('Load config ...')
+    run_arg = Path(run_arg)
+    if run_arg.is_file():
+        config, output = get_new_run(run_arg, tag, hparam_csv, hparam_row)
+        checkpoint = None
+    elif run_arg.is_dir():
+        print('... detected checkpoint, loading from checkpoint')
+        config, output, checkpoint = load_checkpoint(run_arg.stem)
+        print(f'... will start training from epoch {checkpoint["epoch"]}')
+    else:
+        raise FileNotFoundError('must pass config yaml or prev output dir')
 
     print('Set up training variables ...')
     init_epoch = 0
@@ -82,6 +114,13 @@ def main(
     config['scheduler']['kwargs']['optimizer'] = optimizer
     scheduler = getattr(optim.lr_scheduler, config['scheduler']['name'])
     scheduler = scheduler(**config['scheduler']['kwargs'])
+
+    if checkpoint is not None:
+        print('... detected checkpoint, restoring state')
+        init_epoch = checkpoint['epoch']
+        network.load_state_dict(checkpoint['network'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        scheduler.load_state_dict(checkpoint['scheduler'])
 
     print('Training ...')
     epochbar = tqdm(
