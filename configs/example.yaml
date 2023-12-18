@@ -1,5 +1,5 @@
 device: cpu
-num_epochs: 1
+num_epochs: 10
 batch_size: 10
 optimizer:
     name: SGD
@@ -11,4 +11,4 @@ scheduler:
     name: CosineAnnealingWarmRestarts
     kwargs:
         T_0: 100
-plumbing: true
+plumbing: false
