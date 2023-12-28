@@ -21,6 +21,7 @@ Animals -> 2, 3, 4, 5, 6, 7, 8 ... 70 samples
 from pathlib import Path
 from typing import List, Tuple, Union
 import fire
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
@@ -221,7 +222,7 @@ def main(
                 network,
                 valset,
                 device=config['device'],
-                num_batches=100
+                num_batches=10
             )
             losses = head.compute_loss(outputs, labels, 2, 0.5)
             val_loss = losses[0] + 0.5 * losses[1]
@@ -236,6 +237,28 @@ def main(
         if 'plumbing' in config and config['plumbing']:
             print('... exit epoch loop early for plumbing check')
             break
+
+    print('Drawing validation confusion matrices ...')
+    outputs, labels = taxonomy.gather_outputs(
+                network,
+                valset,
+                device=config['device'],
+                num_batches=10
+            )
+    confmat = confusion_matrix(
+        labels, outputs[0].argmax(dim=1), normalize=None
+    )
+    disp = ConfusionMatrixDisplay(confmat)
+    disp.plot(cmap='Blues')
+    disp.figure_.savefig(output.output_dir / 'valcm.jpg')
+    confmat = confusion_matrix(
+        taxonomy.apply_taxonomy(labels, taxonomy.TAXONOMY_A),
+        outputs[1].argmax(dim=1),
+        normalize=None
+    )
+    disp = ConfusionMatrixDisplay(confmat)
+    disp.plot(cmap='Blues')
+    disp.figure_.savefig(output.output_dir / 'valcm-ontology.jpg')
 
     print('Exporting final weights ...')
     network.eval()
