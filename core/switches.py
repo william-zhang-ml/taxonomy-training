@@ -9,7 +9,7 @@ from torch import nn
 from torchvision import models
 
 
-def get_backbone(arch_name: str, task_head: nn.Module) -> nn.Module:
+def get_backbone(arch_name: str, task_head: nn.Module = None) -> nn.Module:
     """Affix a task head to a CNN backbone archiecture.
 
     Args:
