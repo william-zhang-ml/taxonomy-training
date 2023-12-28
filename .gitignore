@@ -161,6 +161,8 @@ cython_debug/
 
 # Local files
 cifar10-train
+*.jpg
 *.onnx
 runs
 _tensorboard
+*.yaml
