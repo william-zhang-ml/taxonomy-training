@@ -25,7 +25,7 @@ def get_backbone(arch_name: str, task_head: nn.Module) -> nn.Module:
     if arch_name == 'resnet18':
         network = models.resnet18()
         network.fc = task_head
-    elif arch_name == 'resnext32':
+    elif arch_name == 'resnext50':
         network = models.resnext50_32x4d()
         network.fc = task_head
     else:
