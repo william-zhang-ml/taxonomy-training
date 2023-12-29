@@ -26,12 +26,11 @@ import torch
 from torch import optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torchvision import models
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
 from tqdm import tqdm
 import yaml
-from core import reader, taxonomy, utils
+from core import reader, switches, taxonomy, utils
 
 
 def get_new_run(
@@ -137,13 +136,8 @@ def main(
         batch_size=config['batch_size'],
         shuffle=True
     )
-    network = models.resnet18().to(config['device'])
-    head = taxonomy.TaxonomyHead(
-        network.fc.in_features,
-        10,
-        taxonomy.TAXONOMY_A
-    )
-    network.fc = head
+    head = taxonomy.TaxonomyHead(512, 10, taxonomy.TAXONOMY_A)
+    network = switches.get_backbone(config['arch_name'], head)
     config['optimizer']['kwargs']['params'] = network.parameters()
     optimizer = getattr(optim, config['optimizer']['name'])
     optimizer = optimizer(**config['optimizer']['kwargs'])
